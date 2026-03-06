@@ -1,0 +1,32 @@
+﻿version: '3.8'
+
+services:
+  scrum-poker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - APP_ORIGIN=https://your-domain.com
+    restart: unless-stopped
+    networks:
+      - scrum-poker-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - scrum-poker-network
+    volumes:
+      - redis_data:/data
+
+networks:
+  scrum-poker-network:
+    driver: bridge
+
+volumes:
+  redis_data:

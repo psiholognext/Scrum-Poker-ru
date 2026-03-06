@@ -1,0 +1,46 @@
+﻿# Production configuration with nginx reverse proxy
+version: '3.8'
+
+services:
+  scrum-poker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - APP_ORIGIN=https://your-domain.com
+    restart: unless-stopped
+    networks:
+      - scrum-poker-network
+    depends_on:
+      - redis
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    restart: unless-stopped
+    networks:
+      - scrum-poker-network
+    depends_on:
+      - scrum-poker
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - scrum-poker-network
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+networks:
+  scrum-poker-network:
+    driver: bridge
+
+volumes:
+  redis_data:
