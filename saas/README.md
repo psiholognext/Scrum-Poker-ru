@@ -48,3 +48,7 @@ The preview is an initial product slice, not the full marketing boilerplate. Pay
 ## Security maintenance
 
 Nodemailer is overridden to a patched version; the SMTP signup/reset flow must be included in deployment verification. Check the actual runtime dependency audit before production. Never use `npm audit fix --force` across Wasp's pinned framework dependencies without rebuilding and testing auth.
+
+### Poker tasks and results
+
+Name the initial task when creating a room or demo. A facilitator can edit the current title, create a named next task, or repeat voting on the same task with a fresh round. Previous revealed rounds remain in history and CSV exports. Reveal displays the average, median, most common estimate and distribution; `1/2` counts as 0.5 and `?`/coffee do not enter numeric calculations. Participants can explicitly amend their own disclosed estimate in the current round or switch to observing. Facilitators retain room controls while observing.

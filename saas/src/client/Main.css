@@ -787,3 +787,87 @@ hr {
   color: #dbc894;
   font-size: 11px;
 }
+
+.poker-results {
+  padding: 4px 0;
+}
+.result-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.result-metrics > div {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(143, 117, 255, 0.09);
+}
+.result-metrics small {
+  display: block;
+  color: var(--muted, #aaa);
+  font-size: 12px;
+}
+.result-metrics strong {
+  display: block;
+  font-size: 28px;
+  margin-top: 8px;
+}
+.result-caption {
+  color: var(--muted, #aaa);
+  font-size: 13px;
+}
+.vote-distribution > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+}
+.vote-distribution b {
+  width: 36px;
+  text-align: center;
+}
+.distribution-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(143, 117, 255, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.distribution-track i {
+  display: block;
+  height: 100%;
+  background: #a38bff;
+  border-radius: 10px;
+}
+.vote-distribution small {
+  width: 70px;
+}
+.compact .result-metrics {
+  gap: 6px;
+}
+.compact .result-metrics > div {
+  padding: 8px;
+}
+.compact .result-metrics strong {
+  font-size: 20px;
+}
+.room-controls {
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.round-heading h2 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .result-metrics {
+    gap: 6px;
+  }
+  .result-metrics > div {
+    padding: 10px;
+  }
+  .result-metrics strong {
+    font-size: 24px;
+  }
+  .inline-form {
+    flex-wrap: wrap;
+  }
+}

@@ -36,7 +36,7 @@ beforeAll(async () => {
   );
   team = await createTeam({ name: "Security test team" }, ctx(alice));
   room = await createRoom(
-    { teamId: team.id, name: "Private room" },
+    { teamId: team.id, name: "Private room", taskTitle: "First story" },
     ctx(alice),
   );
 });
@@ -51,6 +51,7 @@ afterAll(async () => {
 describe("Authenticated room operations against PostgreSQL", () => {
   it("publishes profile changes to existing room streams", async () => {
     const before = await getRoomState({ roomId: room.id }, ctx(alice));
+    expect(before.currentRound.title).toBe("First story");
     await updateProfile({ name: "Updated facilitator" }, ctx(alice));
     const after = await getRoomState({ roomId: room.id }, ctx(alice));
     expect(after.revision).toBeGreaterThan(before.revision);
@@ -111,6 +112,7 @@ describe("Authenticated room operations against PostgreSQL", () => {
       "5",
     );
     expect(beforeReveal.history).toEqual([]);
+    expect(beforeReveal.currentRound.statistics).toBeNull();
     await expect(
       mutateRoom(
         { roomId: room.id, type: "reveal", roundId: a.currentRound.id },
@@ -124,6 +126,7 @@ describe("Authenticated room operations against PostgreSQL", () => {
     const after = await getRoomState({ roomId: room.id }, ctx(bob));
     expect(after.participants.find((p) => p.id === a.me)?.vote).toBe("13");
     expect(after.history[0].votes).toHaveLength(2);
+    expect(after.history[0].statistics.average).toBe("9.0");
     await expect(
       mutateRoom(
         {
@@ -210,6 +213,133 @@ describe("Authenticated room operations against PostgreSQL", () => {
         ctx(),
       ),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("names tasks, amends own votes, repeats rounds and retains facilitator rights while observing", async () => {
+    const demo = await createDemo(
+      { name: "Poker host", taskTitle: "Register with Google" },
+      ctx(),
+    );
+    demoRooms.push(demo.roomId);
+    const args = { roomId: demo.roomId, guestToken: demo.guestToken };
+    let v = await getRoomState(args, ctx());
+    expect(v.currentRound.title).toBe("Register with Google");
+    expect(v.currentRound.deck).toContain("1/2");
+    expect(v.currentRound.deck).toContain("89");
+    const inv = await createInvitation(args, ctx());
+    const guest = await joinInvitation(
+      { token: inv.token, name: "Guest estimator" },
+      ctx(),
+    );
+    const ga = { roomId: demo.roomId, guestToken: guest.guestToken };
+    await expect(
+      mutateRoom(
+        { ...args, type: "reveal", roundId: v.currentRound.id },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await expect(
+      mutateRoom(
+        {
+          ...ga,
+          type: "renameTask",
+          roundId: v.currentRound.id,
+          title: "Forbidden",
+        },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await mutateRoom(
+      {
+        ...args,
+        type: "renameTask",
+        roundId: v.currentRound.id,
+        title: "Google sign in",
+      },
+      ctx(),
+    );
+    await mutateRoom(
+      { ...args, type: "vote", roundId: v.currentRound.id, value: "1/2" },
+      ctx(),
+    );
+    await mutateRoom(
+      { ...ga, type: "vote", roundId: v.currentRound.id, value: "5" },
+      ctx(),
+    );
+    expect((await getRoomState(ga, ctx())).currentRound.statistics).toBeNull();
+    await mutateRoom(
+      { ...args, type: "reveal", roundId: v.currentRound.id },
+      ctx(),
+    );
+    v = await getRoomState(args, ctx());
+    expect(v.currentRound.statistics).toMatchObject({
+      average: "2.8",
+      median: "2.8",
+      totalVotes: 2,
+    });
+    await mutateRoom(
+      {
+        ...ga,
+        type: "amend",
+        roundId: v.currentRound.id,
+        value: "3",
+        participantId: v.me,
+      } as any,
+      ctx(),
+    );
+    v = await getRoomState(args, ctx());
+    expect(v.participants.find((p) => p.id === v.me)?.vote).toBe("1/2");
+    expect(v.currentRound.statistics?.average).toBe("1.8");
+    const old = v.currentRound.id;
+    await mutateRoom({ ...args, type: "revote", roundId: old }, ctx());
+    v = await getRoomState(args, ctx());
+    expect(v.currentRound.title).toBe("Google sign in");
+    expect(v.currentRound.status).toBe("OPEN");
+    expect(v.currentRound.statistics).toBeNull();
+    expect(v.participants.every((p) => !p.hasVoted)).toBe(true);
+    expect(v.history[0].statistics.average).toBe("1.8");
+    await expect(
+      mutateRoom({ ...ga, type: "amend", roundId: old, value: "8" }, ctx()),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await mutateRoom(
+      { ...args, type: "vote", roundId: v.currentRound.id, value: "8" },
+      ctx(),
+    );
+    await mutateRoom(
+      { ...args, type: "observe", roundId: v.currentRound.id, observing: true },
+      ctx(),
+    );
+    v = await getRoomState(args, ctx());
+    expect(v.myRole).toBe("FACILITATOR");
+    expect(v.participants.find((p) => p.id === v.me)).toMatchObject({
+      isObserving: true,
+      hasVoted: false,
+    });
+    await expect(
+      mutateRoom(
+        { ...args, type: "vote", roundId: v.currentRound.id, value: "3" },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await mutateRoom(
+      { ...ga, type: "vote", roundId: v.currentRound.id, value: "3" },
+      ctx(),
+    );
+    await mutateRoom(
+      { ...args, type: "reveal", roundId: v.currentRound.id },
+      ctx(),
+    );
+    expect(
+      (await getRoomState(args, ctx())).currentRound.statistics?.average,
+    ).toBe("3.0");
+    await mutateRoom(
+      {
+        ...args,
+        type: "observe",
+        roundId: v.currentRound.id,
+        observing: false,
+      },
+      ctx(),
+    );
   });
   it("scopes guest access and immediately honors invitation revocation", async () => {
     const inv = await createInvitation({ roomId: room.id }, ctx(alice));

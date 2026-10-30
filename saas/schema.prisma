@@ -51,6 +51,7 @@ model Participant {
   userId String?
   name String
   role String @default("PARTICIPANT")
+  isObserving Boolean @default(false)
   guestTokenHash String? @unique
   guestExpiresAt DateTime?
   invitationId String?
@@ -67,7 +68,7 @@ model Round {
   number Int
   title String
   status String @default("OPEN")
-  deck String @default("0,1,2,3,5,8,13,21,?,coffee")
+  deck String @default("0,1/2,1,2,3,5,8,13,21,34,55,89,?")
   createdAt DateTime @default(now())
   revealedAt DateTime?
   room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)

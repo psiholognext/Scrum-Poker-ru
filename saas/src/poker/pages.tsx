@@ -17,6 +17,7 @@ import {
 } from "wasp/client/operations";
 import type { RoomView } from "./operations";
 import { csvCell } from "./policy";
+import { Results } from "./Results";
 
 function errorText(e: unknown) {
   return e instanceof Error ? e.message : "Не удалось выполнить действие";
@@ -120,6 +121,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [teamName, setTeamName] = useState("");
   const [roomName, setRoomName] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
   const [selected, setSelected] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -293,6 +295,7 @@ export function DashboardPage() {
                       const r = await createRoom({
                         teamId: active.id,
                         name: roomName,
+                        taskTitle,
                       });
                       navigate("/room/" + r.id);
                     });
@@ -305,6 +308,14 @@ export function DashboardPage() {
                     placeholder="Название комнаты"
                     value={roomName}
                     onChange={(e) => setRoomName(e.target.value)}
+                  />
+                  <input
+                    aria-label="Название первой задачи"
+                    placeholder="Название первой задачи"
+                    value={taskTitle}
+                    onChange={(e) => setTaskTitle(e.target.value)}
+                    required
+                    maxLength={200}
                   />
                   <button className="button" disabled={busy}>
                     Создать комнату
@@ -449,6 +460,7 @@ export function InvitePage() {
 }
 export function DemoPage() {
   const [name, setName] = useState("");
+  const [taskTitle, setTaskTitle] = useState("Вход через Google");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -467,7 +479,7 @@ export function DemoPage() {
             e.preventDefault();
             setBusy(true);
             try {
-              const r = await createDemo({ name });
+              const r = await createDemo({ name, taskTitle });
               rememberGuest(r.roomId, r.guestToken);
               navigate("/room/" + r.roomId);
             } catch (e) {
@@ -484,6 +496,15 @@ export function DemoPage() {
               maxLength={30}
               value={name}
               onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <label>
+            Название задачи
+            <input
+              value={taskTitle}
+              onChange={(e) => setTaskTitle(e.target.value)}
+              required
+              maxLength={200}
             />
           </label>
           <button className="button full" disabled={busy}>
@@ -575,6 +596,12 @@ export function RoomPage() {
   const [mutationError, setMutationError] = useState("");
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editingVote, setEditingVote] = useState(false);
+  useEffect(() => {
+    setEditingTitle(null);
+    setEditingVote(false);
+  }, [room?.currentRound.id]);
   const [invite, setInvite] = useState<{ url: string; id: string } | null>(
     null,
   );
@@ -646,10 +673,62 @@ export function RoomPage() {
               <small className="eyebrow">
                 РАУНД {room.currentRound.number}
               </small>
-              <h2>{room.currentRound.title}</h2>
+              {editingTitle !== null ? (
+                <form
+                  className="inline-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    run(async () => {
+                      await mutateRoom({
+                        roomId,
+                        guestToken,
+                        type: "renameTask",
+                        roundId: room.currentRound.id,
+                        title: editingTitle,
+                      });
+                      setEditingTitle(null);
+                    });
+                  }}
+                >
+                  <input
+                    aria-label="Название текущей задачи"
+                    required
+                    maxLength={200}
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                  />
+                  <button className="button small" disabled={busy}>
+                    Сохранить название
+                  </button>
+                  <button
+                    type="button"
+                    className="button subtle small"
+                    onClick={() => setEditingTitle(null)}
+                  >
+                    Отмена
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <h2>{room.currentRound.title}</h2>
+                  {manager && (
+                    <button
+                      className="button subtle small"
+                      onClick={() => setEditingTitle(room.currentRound.title)}
+                    >
+                      Изменить название задачи
+                    </button>
+                  )}
+                </>
+              )}
             </div>
             <span className="muted">
-              {room.participants.filter((p) => p.hasVoted).length} проголосовали
+              {
+                room.participants.filter((p) => !p.isObserving && p.hasVoted)
+                  .length
+              }{" "}
+              из {room.participants.filter((p) => !p.isObserving).length}{" "}
+              проголосовали
             </span>
           </div>
           <div className="poker-table">
@@ -668,7 +747,7 @@ export function RoomPage() {
               {manager && !revealed && (
                 <button
                   className="button"
-                  disabled={busy}
+                  disabled={busy || !room.participants.some((p) => p.hasVoted)}
                   onClick={() =>
                     run(() =>
                       mutateRoom({
@@ -685,60 +764,124 @@ export function RoomPage() {
               )}
             </div>
             <div className="seats">
-              {room.participants.map((p, i) => (
-                <div className="seat" key={p.id}>
-                  <div className={"vote-card " + (p.hasVoted ? "voted" : "")}>
-                    {p.vote ?? (p.hasVoted ? "✓" : "—")}
+              {room.participants
+                .filter((p) => !p.isObserving)
+                .map((p) => (
+                  <div className="seat" key={p.id}>
+                    <div className={"vote-card " + (p.hasVoted ? "voted" : "")}>
+                      {p.vote ?? (p.hasVoted ? "✓" : "—")}
+                    </div>
+                    <strong>
+                      {p.name}
+                      {p.id === room.me ? " · вы" : ""}
+                    </strong>
+                    <small>
+                      {p.role === "FACILITATOR"
+                        ? "Ведущий"
+                        : p.role === "OBSERVER"
+                          ? "Наблюдатель"
+                          : p.hasVoted
+                            ? "Готово"
+                            : "Выбирает карту"}
+                    </small>
                   </div>
-                  <strong>
-                    {p.name}
-                    {p.id === room.me ? " · вы" : ""}
-                  </strong>
-                  <small>
-                    {p.role === "FACILITATOR"
-                      ? "Ведущий"
-                      : p.role === "OBSERVER"
-                        ? "Наблюдатель"
-                        : p.hasVoted
-                          ? "Готово"
-                          : "Выбирает карту"}
-                  </small>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
-          {!revealed && room.myRole !== "OBSERVER" && (
-            <section className="deck panel">
-              <p>
-                Ваша оценка <small>Она видна только вам до раскрытия</small>
-              </p>
-              <div>
-                {room.currentRound.deck.map((v) => (
-                  <button
-                    className={
-                      "playing-card " + (me?.vote === v ? "selected" : "")
-                    }
-                    disabled={busy}
-                    key={v}
-                    onClick={() =>
-                      run(() =>
-                        mutateRoom({
-                          roomId,
-                          guestToken,
-                          type: "vote",
-                          roundId: room.currentRound.id,
-                          value: v,
-                        }),
-                      )
-                    }
-                  >
-                    {v === "coffee" ? "☕" : v}
-                    <small>♠</small>
-                  </button>
-                ))}
-              </div>
-            </section>
+          {room.currentRound.statistics && (
+            <div className="panel">
+              <Results stats={room.currentRound.statistics} />
+            </div>
           )}
+          <div className="actions room-controls">
+            {room.myRole !== "OBSERVER" && (
+              <button
+                className="button subtle small"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    mutateRoom({
+                      roomId,
+                      guestToken,
+                      type: "observe",
+                      roundId: room.currentRound.id,
+                      observing: !me?.isObserving,
+                    }),
+                  )
+                }
+              >
+                {me?.isObserving
+                  ? "Вернуться к голосованию"
+                  : "Стать наблюдателем"}
+              </button>
+            )}
+            {revealed && !me?.isObserving && room.myRole !== "OBSERVER" && (
+              <button
+                className="button secondary small"
+                disabled={busy}
+                onClick={() => setEditingVote((v) => !v)}
+              >
+                {editingVote ? "Закончить изменение" : "Изменить свою оценку"}
+              </button>
+            )}
+            {revealed && manager && (
+              <button
+                className="button secondary small"
+                disabled={busy}
+                onClick={() =>
+                  run(() =>
+                    mutateRoom({
+                      roomId,
+                      guestToken,
+                      type: "revote",
+                      roundId: room.currentRound.id,
+                    }),
+                  )
+                }
+              >
+                Переголосовать эту задачу
+              </button>
+            )}
+          </div>
+          {(!revealed || editingVote) &&
+            room.myRole !== "OBSERVER" &&
+            !me?.isObserving && (
+              <section className="deck panel">
+                <p>
+                  Ваша оценка{" "}
+                  <small>
+                    {revealed
+                      ? "Изменение сразу увидит вся команда"
+                      : "Она видна только вам до раскрытия"}
+                  </small>
+                </p>
+                <div>
+                  {room.currentRound.deck.map((v) => (
+                    <button
+                      className={
+                        "playing-card " + (me?.vote === v ? "selected" : "")
+                      }
+                      disabled={busy}
+                      key={v}
+                      onClick={() =>
+                        run(() =>
+                          mutateRoom({
+                            roomId,
+                            guestToken,
+                            type: revealed ? "amend" : "vote",
+                            roundId: room.currentRound.id,
+                            value: v,
+                          }),
+                        )
+                      }
+                    >
+                      {v === "coffee" ? "☕" : v}
+                      <small>♠</small>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
           {revealed && manager && (
             <form
               className="panel inline-form"
@@ -750,7 +893,7 @@ export function RoomPage() {
                     guestToken,
                     type: "next",
                     roundId: room.currentRound.id,
-                    title: title || undefined,
+                    title,
                   });
                   setTitle("");
                 });
@@ -758,12 +901,13 @@ export function RoomPage() {
             >
               <input
                 value={title}
+                required
                 maxLength={200}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Название следующей задачи"
               />
               <button className="button" disabled={busy}>
-                Следующий раунд →
+                Следующая задача →
               </button>
             </form>
           )}
@@ -804,7 +948,7 @@ export function RoomPage() {
                     </select>
                   ) : (
                     <small>
-                      {p.role === "OBSERVER"
+                      {p.isObserving
                         ? "Наблюдатель"
                         : p.role === "FACILITATOR"
                           ? "Ведущий"
@@ -910,6 +1054,7 @@ export function RoomPage() {
                 <summary>
                   #{r.number} · {r.title}
                 </summary>
+                <Results stats={r.statistics} compact />
                 {r.votes.map((v, i) => (
                   <div className="member-row" key={i}>
                     <span>{v.name}</span>

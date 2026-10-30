@@ -17,6 +17,7 @@ import type {
 import { z } from "zod";
 import { canManage, canVote, invitationUsable, visibleVote } from "./policy";
 import { issueTicket } from "./tickets";
+import { calculateStatistics, type Statistics } from "./statistics";
 
 type Tx = Prisma.TransactionClient;
 type AuthContext = {
@@ -39,6 +40,7 @@ export type RoomView = {
     id: string;
     name: string;
     role: string;
+    isObserving: boolean;
     hasVoted: boolean;
     vote: string | null;
   }[];
@@ -48,12 +50,14 @@ export type RoomView = {
     title: string;
     status: string;
     deck: string[];
+    statistics: Statistics | null;
   };
   history: {
     id: string;
     number: number;
     title: string;
     votes: { name: string; value: string }[];
+    statistics: Statistics;
   }[];
   invitations: {
     id: string;
@@ -244,6 +248,7 @@ export async function viewForParticipant(
           id: p.id,
           name: p.name,
           role: p.role,
+          isObserving: p.isObserving || !canVote(p.role),
           hasVoted: !!v,
           vote: visibleVote(
             v?.value,
@@ -258,6 +263,10 @@ export async function viewForParticipant(
       title: round.title,
       status: round.status,
       deck: round.deck.split(","),
+      statistics:
+        round.status === "REVEALED"
+          ? calculateStatistics(round.votes.map((v) => v.value))
+          : null,
     },
     invitations: canManage(me.role)
       ? room.invitations.map((i) => ({
@@ -273,6 +282,7 @@ export async function viewForParticipant(
         id: r.id,
         number: r.number,
         title: r.title,
+        statistics: calculateStatistics(r.votes.map((v) => v.value)),
         votes: r.votes.map((v) => ({
           name: v.participant.name,
           value: v.value,
@@ -357,12 +367,16 @@ export const updateProfile: UpdateProfile<{ name: string }, void> = async (
   });
 };
 export const createRoom: CreateRoom<
-  { teamId: string; name: string },
+  { teamId: string; name: string; taskTitle?: string },
   { id: string }
 > = async (raw, ctx) => {
   const user = requireUser(ctx);
   const args = parse(
-    z.object({ teamId: z.string().uuid(), name: nameSchema }),
+    z.object({
+      teamId: z.string().uuid(),
+      name: nameSchema,
+      taskTitle: z.string().trim().min(1).max(200).optional(),
+    }),
     raw,
   );
   rate("room:" + user.id, 20, 3600_000);
@@ -370,7 +384,8 @@ export const createRoom: CreateRoom<
     await teamAccess(tx, args.teamId, user.id);
     return tx.room.create({
       data: {
-        ...args,
+        teamId: args.teamId,
+        name: args.name,
         participants: {
           create: {
             userId: user.id,
@@ -378,7 +393,7 @@ export const createRoom: CreateRoom<
             role: "FACILITATOR",
           },
         },
-        rounds: { create: { number: 1, title: "Первая задача" } },
+        rounds: { create: { number: 1, title: args.taskTitle || args.name } },
       },
       select: { id: true },
     });
@@ -520,6 +535,7 @@ export const joinInvitation: JoinInvitation<
         roomId: room.id,
         name: args.name,
         role: inv.role,
+        isObserving: inv.role === "OBSERVER",
         invitationId: inv.id,
         guestTokenHash: digest(guestToken),
         guestExpiresAt: new Date(
@@ -542,10 +558,16 @@ export const joinInvitation: JoinInvitation<
   });
 };
 export const createDemo: CreateDemo<
-  { name: string },
+  { name: string; taskTitle?: string },
   { roomId: string; guestToken: string }
 > = async (raw) => {
-  const { name } = parse(z.object({ name: nameSchema.max(30) }), raw);
+  const { name, taskTitle } = parse(
+    z.object({
+      name: nameSchema.max(30),
+      taskTitle: z.string().trim().min(1).max(200).optional(),
+    }),
+    raw,
+  );
   rate("demo-global", 30, 15 * 60_000);
   const guestToken = randomBytes(32).toString("hex");
   const room = await prisma.room.create({
@@ -561,7 +583,9 @@ export const createDemo: CreateDemo<
           guestExpiresAt: new Date(Date.now() + 3600_000),
         },
       },
-      rounds: { create: { number: 1, title: "Оценим первую задачу" } },
+      rounds: {
+        create: { number: 1, title: taskTitle || "Вход через Google" },
+      },
     },
   });
   return { roomId: room.id, guestToken };
@@ -580,20 +604,39 @@ export const getRoomState: GetRoomState<RoomArgs, RoomView> = async (
   });
 };
 type Mutation = RoomArgs & {
-  type: "vote" | "reveal" | "next" | "rename";
+  type:
+    | "vote"
+    | "amend"
+    | "reveal"
+    | "next"
+    | "revote"
+    | "rename"
+    | "renameTask"
+    | "observe";
   roundId?: string;
   value?: string;
   title?: string;
   name?: string;
+  observing?: boolean;
 };
 export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
   const args = parse(
     roomArgs.extend({
-      type: z.enum(["vote", "reveal", "next", "rename"]),
+      type: z.enum([
+        "vote",
+        "amend",
+        "reveal",
+        "next",
+        "revote",
+        "rename",
+        "renameTask",
+        "observe",
+      ]),
       roundId: z.string().uuid().optional(),
       value: z.string().max(6).optional(),
       title: z.string().trim().min(1).max(200).optional(),
       name: nameSchema.max(30).optional(),
+      observing: z.boolean().optional(),
     }),
     raw,
   );
@@ -607,9 +650,14 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
     if (!r) throw new HttpError(409);
     if (args.type !== "rename" && args.roundId !== r.id)
       throw new HttpError(409, "Раунд уже изменился. Обновите комнату.");
-    if (args.type === "vote") {
-      if (!canVote(p.role)) throw new HttpError(403, "Наблюдатель не голосует");
-      if (r.status !== "OPEN") throw new HttpError(409, "Голосование закрыто");
+    if (args.type === "vote" || args.type === "amend") {
+      if (!canVote(p.role) || p.isObserving)
+        throw new HttpError(403, "Наблюдатель не голосует");
+      if (
+        (args.type === "vote" && r.status !== "OPEN") ||
+        (args.type === "amend" && r.status !== "REVEALED")
+      )
+        throw new HttpError(409, "Состояние голосования изменилось");
       if (!args.value || !r.deck.split(",").includes(args.value))
         throw new HttpError(400, "Выберите карту из колоды");
       await tx.vote.upsert({
@@ -619,6 +667,17 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
         create: { roundId: r.id, participantId: p.id, value: args.value },
         update: { value: args.value },
       });
+    } else if (args.type === "observe") {
+      if (!canVote(p.role) || args.observing === undefined)
+        throw new HttpError(403);
+      await tx.participant.update({
+        where: { id: p.id },
+        data: { isObserving: args.observing },
+      });
+      if (args.observing)
+        await tx.vote.deleteMany({
+          where: { roundId: r.id, participantId: p.id },
+        });
     } else if (args.type === "rename") {
       if (!args.name) throw new HttpError(400);
       await tx.participant.update({
@@ -628,12 +687,25 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
     } else {
       if (!canManage(p.role))
         throw new HttpError(403, "Это действие доступно ведущему");
-      if (args.type === "reveal")
+      if (args.type === "renameTask") {
+        if (!args.title) throw new HttpError(400, "Введите название задачи");
+        await tx.round.update({
+          where: { id: r.id },
+          data: { title: args.title },
+        });
+      }
+      if (args.type === "reveal") {
+        if (
+          r.status !== "OPEN" ||
+          !(await tx.vote.count({ where: { roundId: r.id } }))
+        )
+          throw new HttpError(409, "Сначала выберите хотя бы одну оценку");
         await tx.round.update({
           where: { id: r.id },
           data: { status: "REVEALED", revealedAt: new Date() },
         });
-      if (args.type === "next") {
+      }
+      if (args.type === "next" || args.type === "revote") {
         if (r.status !== "REVEALED")
           throw new HttpError(
             409,
@@ -643,7 +715,10 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
           data: {
             roomId: args.roomId,
             number: r.number + 1,
-            title: args.title || `Задача ${r.number + 1}`,
+            title:
+              args.type === "revote"
+                ? r.title
+                : args.title || `Задача ${r.number + 1}`,
             deck: r.deck,
           },
         });
@@ -682,14 +757,14 @@ export const setParticipantRole: SetParticipantRole<
       data:
         args.role === "REMOVED"
           ? { revokedAt: new Date() }
-          : { role: args.role },
+          : { role: args.role, isObserving: args.role === "OBSERVER" },
     });
     if (args.role === "OBSERVER" || args.role === "REMOVED") {
       const current = await tx.round.findFirst({
         where: { roomId: args.roomId },
         orderBy: { number: "desc" },
       });
-      if (current?.status === "OPEN")
+      if (current)
         await tx.vote.deleteMany({
           where: { roundId: current.id, participantId: target.id },
         });
