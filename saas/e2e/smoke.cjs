@@ -29,7 +29,42 @@ const path = require('node:path');
  await guest.getByLabel('Как вас представить?').fill('Иван');
  await guest.getByRole('button',{name:'Принять приглашение'}).click();
  await guest.waitForURL(/\/room\//);
- await host.locator('.playing-card').filter({hasText:/^3\s*♠$/}).click();
+
+ await host.getByRole('button',{name:'Бумажный самолётик для Иван',exact:true}).click();
+ await guest.locator('[data-testid="room-interaction"][data-kind="plane"]').waitFor();
+ await guest.screenshot({path:path.join(artifacts,'paper-plane.png'),fullPage:true});
+ await guest.getByRole('button',{name:'Показать реакцию: Смех',exact:true}).click();
+ await host.locator('[data-testid="room-interaction"][data-kind="laugh"]').waitFor();
+ await host.screenshot({path:path.join(artifacts,'reaction.png'),fullPage:true});
+ await guest.getByLabel('Скрыть анимации',{exact:true}).check();
+ await new Promise(r=>setTimeout(r,750));
+ await host.getByRole('button',{name:'Сердечко для Иван',exact:true}).click();
+ await host.locator('[data-testid="room-interaction"][data-kind="heart"]').waitFor();
+ assert.equal(await guest.locator('[data-testid="room-interaction"]').count(),0);
+ await guest.getByLabel('Скрыть анимации',{exact:true}).uncheck();
+ const cards=host.locator('.playing-card');
+ const card5=cards.filter({hasText:/^5\s*♠$/}),card3=cards.filter({hasText:/^3\s*♠$/});
+ // A failed write must roll back the optimistic card instead of claiming success.
+ await host.route('**/operations/mutate-room',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'Temporary test failure'})}),{times:1});
+ await card5.click();
+ await host.locator('[role=alert]').waitFor();
+ await host.waitForFunction(()=>!document.querySelector('.playing-card.selected'));
+ // Artificially delay writes; two rapid choices must select immediately and save the last value.
+ let voteWrites=0;let roomReads=0;
+ host.on('request',r=>{if(r.url().includes('/operations/get-room-state'))roomReads++});
+ await host.route('**/operations/mutate-room',async route=>{voteWrites++;await new Promise(r=>setTimeout(r,800));await route.continue()});
+ await card5.click();
+ assert.equal(await card5.getAttribute('aria-pressed'),'true');
+ await card3.click();
+ assert.equal(await card3.getAttribute('aria-pressed'),'true');
+ assert.equal(await card5.isEnabled(),true);
+ await host.waitForFunction(()=>document.querySelector('.vote-save-status')?.textContent==='Оценка сохранена');
+ assert.equal(voteWrites,2);
+ assert.equal(roomReads,0,'A vote should not require a second room-state request');
+ await host.unroute('**/operations/mutate-room');
+ assert.equal(await card3.getAttribute('aria-pressed'),'true');
+ console.log('PASS responsiveness: immediate selection during 800ms writes, last choice saved, failed write rolled back, no extra state request');
+
  await guest.locator('.playing-card').filter({hasText:/^8\s*♠$/}).click();
  await host.waitForFunction(()=>Array.from(document.querySelectorAll('.seat')).some(e=>e.textContent.includes('Иван')&&e.querySelector('.vote-card')?.textContent==='✓'));
  assert.equal(await host.locator('.seat').filter({hasText:'Иван'}).locator('.vote-card').innerText(),'✓');
@@ -66,6 +101,6 @@ const path = require('node:path');
    console.log('PASS browser: verified-account login, dashboard, team room creation and logout');
  }
  assert.deepEqual(errors,[]);
- console.log('PASS browser: homepage, guest-hosted demo, invitation, two-user SSE, task naming, hidden votes/statistics, reveal, averages, vote amendment, revote, CSV and next task');
+ console.log('PASS browser: homepage, guest-hosted demo, invitation, two-user SSE, task naming, hidden votes/statistics, reveal, averages, vote amendment, revote, paper planes, shared emoji, animation mute, CSV and next task');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});

@@ -871,3 +871,183 @@ hr {
     flex-wrap: wrap;
   }
 }
+.target-reactions,
+.reaction-picker {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.target-reactions {
+  margin-top: 8px;
+}
+.target-reactions button,
+.reaction-picker button {
+  background: rgba(161, 130, 255, 0.1);
+  border: 1px solid rgba(161, 130, 255, 0.18);
+  border-radius: 10px;
+  padding: 6px 9px;
+  font-size: 19px;
+  cursor: pointer;
+  transition:
+    transform 0.15s,
+    background 0.15s;
+  color: inherit;
+}
+.target-reactions button:hover,
+.reaction-picker button:hover {
+  transform: translateY(-3px) scale(1.12);
+  background: rgba(161, 130, 255, 0.25);
+}
+.target-reactions button:focus-visible,
+.reaction-picker button:focus-visible {
+  outline: 2px solid #baa2ff;
+  outline-offset: 3px;
+}
+.fun-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.fun-toolbar strong,
+.fun-toolbar small {
+  display: block;
+}
+.fun-toolbar small {
+  font-size: 12px;
+  color: #a8acc5;
+  margin-top: 5px;
+}
+.fun-mute {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px !important;
+  margin: 0 !important;
+}
+.fun-mute input {
+  width: auto;
+  margin: 0;
+}
+.fun-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+}
+.fun-particle {
+  position: absolute;
+  will-change: transform, opacity;
+  text-align: center;
+  width: 100px;
+  margin-left: -50px;
+}
+.fun-symbol {
+  font-size: 44px;
+  filter: drop-shadow(0 4px 12px #16102766);
+}
+.fun-particle small {
+  display: block;
+  font-size: 11px;
+  color: #fff;
+  white-space: nowrap;
+  max-width: 200px;
+  text-shadow: 0 2px 4px #000;
+}
+.paper-flight {
+  animation: paper-flight 1.8s both;
+}
+.paper-flight svg {
+  transform: rotate(var(--flight-angle));
+}
+.emoji-reaction {
+  animation: emoji-pop 2.3s both;
+}
+@keyframes paper-flight {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  10% {
+    opacity: 1;
+  }
+  48% {
+    transform: translate(
+        calc(var(--flight-x) * 0.5),
+        calc(var(--flight-y) * 0.5 - 85px)
+      )
+      scale(1.15);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(var(--flight-x), var(--flight-y)) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--flight-x), calc(var(--flight-y) - 20px))
+      scale(1.25);
+  }
+}
+@keyframes emoji-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.3) rotate(-15deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-25px) scale(1.25) rotate(8deg);
+  }
+  45% {
+    transform: translateY(-45px) scale(1) rotate(-5deg);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-110px) scale(0.85);
+  }
+}
+.vote-save-status {
+  font-size: 12px;
+  color: #bca6ff;
+  margin-left: 10px;
+}
+.playing-card {
+  touch-action: manipulation;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .paper-flight,
+  .emoji-reaction {
+    animation: reaction-fade 2s both;
+  }
+  .target-reactions button:hover,
+  .reaction-picker button:hover {
+    transform: none;
+  }
+  @keyframes reaction-fade {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    20%,
+    80% {
+      opacity: 1;
+    }
+  }
+}

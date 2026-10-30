@@ -13,6 +13,7 @@ import {
   createDemo,
   updateProfile,
 } from "../src/poker/operations";
+import { roomInteractions } from "../src/poker/live";
 process.env.JWT_SECRET = "test-only-secret-not-for-production-123456789";
 const demoRooms: string[] = [];
 let alice: any;
@@ -338,6 +339,83 @@ describe("Authenticated room operations against PostgreSQL", () => {
         roundId: v.currentRound.id,
         observing: false,
       },
+      ctx(),
+    );
+  });
+  it("authenticates reactions, scopes recipients, and keeps hidden estimates private in vote responses", async () => {
+    const demo = await createDemo({ name: "Fun host" }, ctx());
+    demoRooms.push(demo.roomId);
+    const other = await createDemo({ name: "Other host" }, ctx());
+    demoRooms.push(other.roomId);
+    const args = { roomId: demo.roomId, guestToken: demo.guestToken };
+    const v = await getRoomState(args, ctx());
+    const foreign = await getRoomState(
+      { roomId: other.roomId, guestToken: other.guestToken },
+      ctx(),
+    );
+    const inv = await createInvitation(args, ctx());
+    const guest = await joinInvitation(
+      { token: inv.token, name: "Fun guest" },
+      ctx(),
+    );
+    const ga = { roomId: demo.roomId, guestToken: guest.guestToken };
+    const gv = await getRoomState(ga, ctx());
+    await expect(
+      mutateRoom(
+        { roomId: demo.roomId, type: "interact", reaction: "heart" },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 401 });
+    await expect(
+      mutateRoom(
+        { ...args, type: "interact", reaction: "plane", targetId: foreign.me },
+        ctx(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await mutateRoom(
+      {
+        ...ga,
+        type: "interact",
+        reaction: "plane",
+        targetId: v.me,
+        senderId: v.me,
+      } as any,
+      ctx(),
+    );
+    expect(roomInteractions(demo.roomId)[0]).toMatchObject({
+      senderId: gv.me,
+      targetId: v.me,
+      kind: "plane",
+    });
+    expect(roomInteractions(other.roomId)).toEqual([]);
+    await mutateRoom(
+      { ...args, type: "vote", roundId: v.currentRound.id, value: "13" },
+      ctx(),
+    );
+    const result = await mutateRoom(
+      { ...ga, type: "vote", roundId: v.currentRound.id, value: "3" },
+      ctx(),
+    );
+    expect(result?.currentRound.statistics).toBeNull();
+    expect(result?.participants.find((p) => p.id === v.me)?.vote).toBeNull();
+    expect(result?.participants.find((p) => p.id === gv.me)?.vote).toBe("3");
+    await revokeInvitation({ id: inv.id, guestToken: demo.guestToken }, ctx());
+    await expect(
+      mutateRoom({ ...ga, type: "interact", reaction: "heart" }, ctx()),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("limits reaction spam without blocking ordinary votes", async () => {
+    const demo = await createDemo({ name: "Reaction limit" }, ctx());
+    demoRooms.push(demo.roomId);
+    const args = { roomId: demo.roomId, guestToken: demo.guestToken };
+    for (let i = 0; i < 6; i++)
+      await mutateRoom({ ...args, type: "interact", reaction: "clap" }, ctx());
+    await expect(
+      mutateRoom({ ...args, type: "interact", reaction: "clap" }, ctx()),
+    ).rejects.toMatchObject({ statusCode: 429 });
+    const v = await getRoomState(args, ctx());
+    await mutateRoom(
+      { ...args, type: "vote", roundId: v.currentRound.id, value: "5" },
       ctx(),
     );
   });

@@ -52,3 +52,9 @@ Nodemailer is overridden to a patched version; the SMTP signup/reset flow must b
 ### Poker tasks and results
 
 Name the initial task when creating a room or demo. A facilitator can edit the current title, create a named next task, or repeat voting on the same task with a fresh round. Previous revealed rounds remain in history and CSV exports. Reveal displays the average, median, most common estimate and distribution; `1/2` counts as 0.5 and `?`/coffee do not enter numeric calculations. Participants can explicitly amend their own disclosed estimate in the current round or switch to observing. Facilitators retain room controls while observing.
+
+### Team interactions and card responsiveness
+
+Use the buttons below another participant to send a paper plane, heart or applause. The reaction bar shows your own emoji to the room. Animations may be hidden locally and respect reduced-motion preferences. Reactions are transient and limited to six per ten seconds per sender.
+
+Card selection is immediate while the estimate saves. Rapid choices preserve the last selected card; a failed save displays an error and restores confirmed state. Confirmed votes return in the same response and reach connected participants through immediate SSE notifications. The in-memory event bus assumes one application process; use a shared broker when scaling to multiple workers.

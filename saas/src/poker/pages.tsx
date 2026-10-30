@@ -18,6 +18,8 @@ import {
 import type { RoomView } from "./operations";
 import { csvCell } from "./policy";
 import { Results } from "./Results";
+import { RoomFun, TargetReactions } from "./RoomFun";
+import type { Interaction, InteractionKind } from "./live";
 
 function errorText(e: unknown) {
   return e instanceof Error ? e.message : "Не удалось выполнить действие";
@@ -517,6 +519,7 @@ export function DemoPage() {
 }
 
 function useRoomState(roomId: string, guestToken?: string) {
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [room, setRoom] = useState<RoomView | null>(null);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(false);
@@ -571,6 +574,12 @@ function useRoomState(roomId: string, guestToken?: string) {
                 setError("Доступ к комнате истёк или отозван");
               }
               if (event === "state" && data) accept(JSON.parse(data));
+              if (event === "interaction" && data)
+                setInteractions((old) =>
+                  [...old, JSON.parse(data)]
+                    .filter((e) => e.createdAt > Date.now() - 6000)
+                    .slice(-30),
+                );
             }
           }
         } catch (e) {
@@ -583,17 +592,85 @@ function useRoomState(roomId: string, guestToken?: string) {
       }
     }
     setRoom(null);
+    setInteractions([]);
     connect();
     return () => abort.abort();
   }, [roomId, guestToken]);
-  return { room, error, connected, refresh: () => refreshRef.current() };
+  return {
+    room,
+    error,
+    connected,
+    interactions,
+    acceptSnapshot: (v: RoomView) =>
+      setRoom((old) => (!old || v.revision >= old.revision ? v : old)),
+    refresh: () => refreshRef.current(),
+  };
 }
 
 export function RoomPage() {
   const { roomId = "" } = useParams();
   const guestToken = sessionStorage.getItem(guestKey(roomId)) || undefined;
-  const { room, error, connected, refresh } = useRoomState(roomId, guestToken);
+  const { room, error, connected, interactions, refresh, acceptSnapshot } =
+    useRoomState(roomId, guestToken);
   const [mutationError, setMutationError] = useState("");
+  const [pendingVote, setPendingVote] = useState<{
+    roundId: string;
+    value: string;
+  } | null>(null);
+  const voteQueue = useRef<{
+    roundId: string;
+    value: string;
+    type: "vote" | "amend";
+  } | null>(null);
+  const voting = useRef(false);
+  const funCooldown = useRef(0);
+  async function sendReaction(reaction: InteractionKind, targetId?: string) {
+    if (Date.now() < funCooldown.current) return;
+    funCooldown.current = Date.now() + 700;
+    try {
+      await mutateRoom({
+        roomId,
+        guestToken,
+        type: "interact",
+        reaction,
+        targetId,
+      });
+    } catch (e) {
+      setMutationError(errorText(e));
+    }
+  }
+  async function chooseVote(value: string) {
+    if (!room) return;
+    const request = {
+      roundId: room.currentRound.id,
+      value,
+      type: (room.currentRound.status === "REVEALED" ? "amend" : "vote") as
+        | "vote"
+        | "amend",
+    };
+    voteQueue.current = request;
+    setPendingVote(request);
+    setMutationError("");
+    if (voting.current) return;
+    voting.current = true;
+    try {
+      do {
+        while (voteQueue.current) {
+          const next = voteQueue.current;
+          voteQueue.current = null;
+          const updated = await mutateRoom({ roomId, guestToken, ...next });
+          if (updated) acceptSnapshot(updated);
+        }
+      } while (voteQueue.current);
+    } catch (e) {
+      voteQueue.current = null;
+      setMutationError(errorText(e));
+      await refresh().catch(() => {});
+    } finally {
+      voting.current = false;
+      setPendingVote(null);
+    }
+  }
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
@@ -601,6 +678,8 @@ export function RoomPage() {
   useEffect(() => {
     setEditingTitle(null);
     setEditingVote(false);
+    voteQueue.current = null;
+    setPendingVote(null);
   }, [room?.currentRound.id]);
   const [invite, setInvite] = useState<{ url: string; id: string } | null>(
     null,
@@ -652,6 +731,8 @@ export function RoomPage() {
       </main>
     );
   const me = room.participants.find((p) => p.id === room.me);
+  const optimisticVote =
+    pendingVote?.roundId === room.currentRound.id ? pendingVote.value : null;
   return (
     <main className="workspace room-page">
       <div className="page-heading">
@@ -747,7 +828,11 @@ export function RoomPage() {
               {manager && !revealed && (
                 <button
                   className="button"
-                  disabled={busy || !room.participants.some((p) => p.hasVoted)}
+                  disabled={
+                    busy ||
+                    !!pendingVote ||
+                    !room.participants.some((p) => p.hasVoted)
+                  }
                   onClick={() =>
                     run(() =>
                       mutateRoom({
@@ -767,9 +852,19 @@ export function RoomPage() {
               {room.participants
                 .filter((p) => !p.isObserving)
                 .map((p) => (
-                  <div className="seat" key={p.id}>
-                    <div className={"vote-card " + (p.hasVoted ? "voted" : "")}>
-                      {p.vote ?? (p.hasVoted ? "✓" : "—")}
+                  <div className="seat" data-player-seat={p.id} key={p.id}>
+                    <div
+                      className={
+                        "vote-card " +
+                        (p.hasVoted ||
+                        (p.id === room.me && optimisticVote !== null)
+                          ? "voted"
+                          : "")
+                      }
+                    >
+                      {p.id === room.me && optimisticVote !== null
+                        ? optimisticVote
+                        : (p.vote ?? (p.hasVoted ? "✓" : "—"))}
                     </div>
                     <strong>
                       {p.name}
@@ -784,6 +879,13 @@ export function RoomPage() {
                             ? "Готово"
                             : "Выбирает карту"}
                     </small>
+                    {p.id !== room.me && (
+                      <TargetReactions
+                        id={p.id}
+                        name={p.name}
+                        send={sendReaction}
+                      />
+                    )}
                   </div>
                 ))}
             </div>
@@ -849,6 +951,13 @@ export function RoomPage() {
               <section className="deck panel">
                 <p>
                   Ваша оценка{" "}
+                  <span className="vote-save-status" role="status">
+                    {optimisticVote !== null
+                      ? "Сохраняем…"
+                      : me?.hasVoted
+                        ? "Оценка сохранена"
+                        : ""}
+                  </span>
                   <small>
                     {revealed
                       ? "Изменение сразу увидит вся команда"
@@ -859,21 +968,13 @@ export function RoomPage() {
                   {room.currentRound.deck.map((v) => (
                     <button
                       className={
-                        "playing-card " + (me?.vote === v ? "selected" : "")
+                        "playing-card " +
+                        ((optimisticVote ?? me?.vote) === v ? "selected" : "")
                       }
                       disabled={busy}
                       key={v}
-                      onClick={() =>
-                        run(() =>
-                          mutateRoom({
-                            roomId,
-                            guestToken,
-                            type: revealed ? "amend" : "vote",
-                            roundId: room.currentRound.id,
-                            value: v,
-                          }),
-                        )
-                      }
+                      aria-pressed={(optimisticVote ?? me?.vote) === v}
+                      onClick={() => chooseVote(v)}
                     >
                       {v === "coffee" ? "☕" : v}
                       <small>♠</small>
@@ -882,6 +983,7 @@ export function RoomPage() {
                 </div>
               </section>
             )}
+          <RoomFun events={interactions} room={room} send={sendReaction} />
           {revealed && manager && (
             <form
               className="panel inline-form"
@@ -919,12 +1021,23 @@ export function RoomPage() {
               <span className="muted">{room.participants.length}</span>
             </h2>
             {room.participants.map((p) => (
-              <div className="participant-row" key={p.id}>
+              <div
+                className="participant-row"
+                data-player-row={p.id}
+                key={p.id}
+              >
                 <span className="avatar">
                   {p.name.slice(0, 1).toUpperCase()}
                 </span>
                 <div>
                   <strong>{p.name}</strong>
+                  {p.isObserving && p.id !== room.me && (
+                    <TargetReactions
+                      id={p.id}
+                      name={p.name}
+                      send={sendReaction}
+                    />
+                  )}
                   {manager && p.id !== room.me ? (
                     <select
                       aria-label={"Роль " + p.name}

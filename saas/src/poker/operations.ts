@@ -18,6 +18,7 @@ import { z } from "zod";
 import { canManage, canVote, invitationUsable, visibleVote } from "./policy";
 import { issueTicket } from "./tickets";
 import { calculateStatistics, type Statistics } from "./statistics";
+import { notifyRoom, publishInteraction, type InteractionKind } from "./live";
 
 type Tx = Prisma.TransactionClient;
 type AuthContext = {
@@ -612,14 +613,20 @@ type Mutation = RoomArgs & {
     | "revote"
     | "rename"
     | "renameTask"
-    | "observe";
+    | "observe"
+    | "interact";
   roundId?: string;
   value?: string;
   title?: string;
   name?: string;
   observing?: boolean;
+  targetId?: string;
+  reaction?: InteractionKind;
 };
-export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
+export const mutateRoom: MutateRoom<Mutation, RoomView | void> = async (
+  raw,
+  ctx,
+) => {
   const args = parse(
     roomArgs.extend({
       type: z.enum([
@@ -631,25 +638,68 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
         "rename",
         "renameTask",
         "observe",
+        "interact",
       ]),
       roundId: z.string().uuid().optional(),
       value: z.string().max(6).optional(),
       title: z.string().trim().min(1).max(200).optional(),
       name: nameSchema.max(30).optional(),
       observing: z.boolean().optional(),
+      targetId: z.string().uuid().optional(),
+      reaction: z
+        .enum(["plane", "heart", "clap", "laugh", "fire", "party"])
+        .optional(),
     }),
     raw,
   );
   rate("mutate:" + (ctx.user?.id || digest(args.guestToken ?? "anon")));
-  await transaction(async (tx) => {
+  if (args.type === "interact")
+    rate(
+      "fun:" + (ctx.user?.id || digest(args.guestToken ?? "anon")),
+      6,
+      10_000,
+    );
+  let interaction:
+    | { senderId: string; targetId: string; kind: InteractionKind }
+    | undefined;
+  const result = await transaction(async (tx) => {
     const p = await actor(tx, args, ctx);
     const r = await tx.round.findFirst({
       where: { roomId: args.roomId },
       orderBy: { number: "desc" },
     });
     if (!r) throw new HttpError(409);
-    if (args.type !== "rename" && args.roundId !== r.id)
+    if (!["rename", "interact"].includes(args.type) && args.roundId !== r.id)
       throw new HttpError(409, "Раунд уже изменился. Обновите комнату.");
+    if (args.type === "interact") {
+      if (!args.reaction || (args.reaction === "plane" && !args.targetId))
+        throw new HttpError(400, "Выберите участника и реакцию");
+      const target = await tx.participant.findFirst({
+        where: {
+          id: args.targetId || p.id,
+          roomId: args.roomId,
+          revokedAt: null,
+        },
+      });
+      if (
+        !target ||
+        (!target.userId &&
+          (!target.guestExpiresAt || target.guestExpiresAt <= new Date()))
+      )
+        throw new HttpError(404, "Участник уже вышел");
+      if (
+        target.invitationId &&
+        (await tx.invitation.findUnique({ where: { id: target.invitationId } }))
+          ?.revokedAt
+      )
+        throw new HttpError(403, "Приглашение отозвано");
+      interaction = {
+        senderId: p.id,
+        targetId: target.id,
+        kind: args.reaction,
+      };
+      return;
+    }
     if (args.type === "vote" || args.type === "amend") {
       if (!canVote(p.role) || p.isObserving)
         throw new HttpError(403, "Наблюдатель не голосует");
@@ -728,7 +778,12 @@ export const mutateRoom: MutateRoom<Mutation, void> = async (raw, ctx) => {
       where: { id: args.roomId },
       data: { revision: { increment: 1 } },
     });
+    if (args.type === "vote" || args.type === "amend")
+      return viewForParticipant(tx, args.roomId, p.id);
   });
+  if (interaction) publishInteraction(args.roomId, interaction);
+  else notifyRoom(args.roomId);
+  return result;
 };
 export const setParticipantRole: SetParticipantRole<
   RoomArgs & { participantId: string; role: string },
