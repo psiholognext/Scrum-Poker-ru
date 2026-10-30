@@ -1,0 +1,100 @@
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+generator client {
+  provider = "prisma-client-js"
+}
+model User {
+  id String @id @default(uuid())
+  email String? @unique
+  username String? @unique
+  name String @default("")
+  isAdmin Boolean @default(false)
+  createdAt DateTime @default(now())
+  memberships TeamMember[]
+  participants Participant[]
+}
+model Team {
+  id String @id @default(uuid())
+  name String
+  createdAt DateTime @default(now())
+  members TeamMember[]
+  rooms Room[]
+  invitations Invitation[]
+}
+model TeamMember {
+  id String @id @default(uuid())
+  userId String
+  teamId String
+  role String @default("MEMBER")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  @@unique([userId, teamId])
+}
+model Room {
+  id String @id @default(uuid())
+  name String
+  teamId String?
+  team Team? @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  isDemo Boolean @default(false)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  revision Int @default(0)
+  participants Participant[]
+  rounds Round[]
+  invitations Invitation[]
+}
+model Participant {
+  id String @id @default(uuid())
+  roomId String
+  userId String?
+  name String
+  role String @default("PARTICIPANT")
+  guestTokenHash String? @unique
+  guestExpiresAt DateTime?
+  invitationId String?
+  revokedAt DateTime?
+  joinedAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  votes Vote[]
+  @@unique([roomId, userId])
+}
+model Round {
+  id String @id @default(uuid())
+  roomId String
+  number Int
+  title String
+  status String @default("OPEN")
+  deck String @default("0,1,2,3,5,8,13,21,?,coffee")
+  createdAt DateTime @default(now())
+  revealedAt DateTime?
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  votes Vote[]
+  @@unique([roomId, number])
+}
+model Vote {
+  id String @id @default(uuid())
+  roundId String
+  participantId String
+  value String
+  updatedAt DateTime @updatedAt
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participant Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  @@unique([roundId, participantId])
+}
+model Invitation {
+  id String @id @default(uuid())
+  tokenHash String @unique
+  teamId String?
+  roomId String?
+  role String @default("PARTICIPANT")
+  expiresAt DateTime
+  maxUses Int @default(20)
+  useCount Int @default(0)
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  team Team? @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  room Room? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}

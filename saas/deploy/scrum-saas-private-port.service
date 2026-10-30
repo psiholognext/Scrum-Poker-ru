@@ -1,0 +1,13 @@
+[Unit]
+Description=Keep Scrum Poker API reachable only through the local HTTPS proxy
+After=network-online.target nftables.service
+Before=scrum-saas.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/bin/sh -c '/usr/sbin/nft delete table inet scrum_saas_private 2>/dev/null || true; /usr/sbin/nft -f /etc/scrum-poker-saas/private-port.nft'
+ExecStop=/usr/sbin/nft delete table inet scrum_saas_private
+
+[Install]
+WantedBy=multi-user.target

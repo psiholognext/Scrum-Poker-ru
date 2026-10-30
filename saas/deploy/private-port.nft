@@ -1,0 +1,6 @@
+table inet scrum_saas_private {
+  chain input {
+    type filter hook input priority -15; policy accept;
+    iifname != "lo" tcp dport 23601 drop
+  }
+}

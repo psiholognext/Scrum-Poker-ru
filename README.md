@@ -1,3 +1,9 @@
+## Scrum Poker на Open SaaS
+
+Новая версия с регистрацией через Wasp, командами, приглашениями, правами участников и историей раундов находится в [`saas/`](saas/README.md).
+
+Предпросмотр: https://beta.scrumpokeronline.ru. Внешняя отправка писем требует подключения почтового провайдера. Текущая Next.js-версия сохранена в корне репозитория.
+
 # scrum-poker
 
 *Automatically synced with your [v0.dev](https://v0.dev) deployments*

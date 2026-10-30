@@ -1,0 +1,35 @@
+{
+  "name": "scrum-poker-saas",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    ".wasp/out/*",
+    ".wasp/out/sdk/wasp"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "build:web": "node --env-file=.env.client node_modules/vite/bin/vite.js build",
+    "build:server": "npm --workspace .wasp/out/server run bundle"
+  },
+  "dependencies": {
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-router": "^8.0.1",
+    "zod": "^4.6.7",
+    "lucide-react": "^0.525.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/node": "^24.0.0",
+    "@types/express": "^5.0.0",
+    "@wasp.sh/spec": "file:.wasp/spec",
+    "typescript": "6.0.3",
+    "vite": "^8.1.0",
+    "vitest": "^4.1.9",
+    "prisma": "5.19.1"
+  },
+  "overrides": {
+    "nodemailer": "^10.3.1"
+  }
+}

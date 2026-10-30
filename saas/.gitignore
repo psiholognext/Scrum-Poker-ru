@@ -1,0 +1,9 @@
+node_modules/
+.wasp/
+.env.client
+.env.server
+.env.*.local
+*.tsbuildinfo
+coverage/
+!.env.client.example
+!.env.server.example

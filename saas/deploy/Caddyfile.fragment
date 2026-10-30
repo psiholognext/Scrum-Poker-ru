@@ -1,0 +1,23 @@
+beta.scrumpokeronline.ru {
+  encode zstd gzip
+  header {
+    X-Robots-Tag "noindex, nofollow"
+    Referrer-Policy "no-referrer"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+  }
+  handle_path /api/* {
+    reverse_proxy 127.0.0.1:23601 {
+      flush_interval -1
+    }
+  }
+  handle {
+    root * /opt/scrum-poker-saas/.wasp/out/web-app/build
+    @private path /ssr-entry.js /.vite/*
+    respond @private 404
+    try_files {path} /200.html
+    file_server {
+      index 200.html
+    }
+  }
+}

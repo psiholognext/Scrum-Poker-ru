@@ -1,0 +1,24 @@
+[Unit]
+Description=Scrum Poker Open SaaS API
+After=network-online.target docker.service scrum-saas-private-port.service
+Requires=scrum-saas-private-port.service
+
+[Service]
+Type=simple
+User=scrum-saas
+Group=scrum-saas
+WorkingDirectory=/opt/scrum-poker-saas/.wasp/out/server
+EnvironmentFile=/etc/scrum-poker-saas/staging.env
+Environment=NODE_OPTIONS=--max-old-space-size=256
+ExecStart=/opt/scrum-poker-saas-tools/node-v24.22.2-linux-x64/bin/node --enable-source-maps bundle/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=384M
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
