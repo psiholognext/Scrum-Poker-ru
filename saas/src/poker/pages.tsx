@@ -1,3 +1,4 @@
+import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useAuth } from "wasp/client/auth";
@@ -750,10 +751,10 @@ export function RoomPage() {
       <ErrorBox error={mutationError || error} />
       <div className="room-layout">
         <section>
-          <div className="round-heading panel">
-            <div>
+          <div className="round-heading">
+            <div className="round-info">
               <small className="eyebrow">
-                РАУНД {room.currentRound.number}
+                Раунд {room.currentRound.number}
               </small>
               {editingTitle !== null ? (
                 <form
@@ -795,10 +796,12 @@ export function RoomPage() {
                   <h2>{room.currentRound.title}</h2>
                   {manager && (
                     <button
-                      className="button subtle small"
+                      className="button subtle small round-edit"
+                      aria-label="Изменить название задачи"
+                      title="Изменить название задачи"
                       onClick={() => setEditingTitle(room.currentRound.title)}
                     >
-                      Изменить название задачи
+                      <Pencil size={14} aria-hidden="true" />
                     </button>
                   )}
                 </>
