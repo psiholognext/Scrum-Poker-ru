@@ -19,6 +19,7 @@ import type { RoomView } from "./operations";
 import { csvCell } from "./policy";
 import { Results } from "./Results";
 import { RoomFun, TargetReactions } from "./RoomFun";
+import { PokerTable } from "./PokerTable";
 import type { Interaction, InteractionKind } from "./live";
 
 function errorText(e: unknown) {
@@ -812,84 +813,22 @@ export function RoomPage() {
               проголосовали
             </span>
           </div>
-          <div className="poker-table">
-            <div className="table-center">
-              <span className="eyebrow">
-                {revealed ? "РЕЗУЛЬТАТЫ ОТКРЫТЫ" : "ОЦЕНИТЕ НЕЗАВИСИМО"}
-              </span>
-              <strong>
-                {revealed ? "Обсудим оценки?" : "Каждый голос важен"}
-              </strong>
-              <p>
-                {revealed
-                  ? "Перед следующим раундом согласуйте решение."
-                  : "Чужие оценки скрыты до раскрытия."}
-              </p>
-              {manager && !revealed && (
-                <button
-                  className="button"
-                  disabled={
-                    busy ||
-                    !!pendingVote ||
-                    !room.participants.some((p) => p.hasVoted)
-                  }
-                  onClick={() =>
-                    run(() =>
-                      mutateRoom({
-                        roomId,
-                        guestToken,
-                        type: "reveal",
-                        roundId: room.currentRound.id,
-                      }),
-                    )
-                  }
-                >
-                  Раскрыть оценки
-                </button>
-              )}
-            </div>
-            <div className="seats">
-              {room.participants
-                .filter((p) => !p.isObserving)
-                .map((p) => (
-                  <div className="seat" data-player-seat={p.id} key={p.id}>
-                    <div
-                      className={
-                        "vote-card " +
-                        (p.hasVoted ||
-                        (p.id === room.me && optimisticVote !== null)
-                          ? "voted"
-                          : "")
-                      }
-                    >
-                      {p.id === room.me && optimisticVote !== null
-                        ? optimisticVote
-                        : (p.vote ?? (p.hasVoted ? "✓" : "—"))}
-                    </div>
-                    <strong>
-                      {p.name}
-                      {p.id === room.me ? " · вы" : ""}
-                    </strong>
-                    <small>
-                      {p.role === "FACILITATOR"
-                        ? "Ведущий"
-                        : p.role === "OBSERVER"
-                          ? "Наблюдатель"
-                          : p.hasVoted
-                            ? "Готово"
-                            : "Выбирает карту"}
-                    </small>
-                    {p.id !== room.me && (
-                      <TargetReactions
-                        id={p.id}
-                        name={p.name}
-                        send={sendReaction}
-                      />
-                    )}
-                  </div>
-                ))}
-            </div>
-          </div>
+          <PokerTable
+            room={room}
+            optimisticVote={optimisticVote}
+            busy={busy || !!pendingVote}
+            send={sendReaction}
+            reveal={() =>
+              run(() =>
+                mutateRoom({
+                  roomId,
+                  guestToken,
+                  type: "reveal",
+                  roundId: room.currentRound.id,
+                }),
+              )
+            }
+          />
           {room.currentRound.statistics && (
             <div className="panel">
               <Results stats={room.currentRound.statistics} />

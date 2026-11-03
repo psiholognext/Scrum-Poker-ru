@@ -132,25 +132,24 @@ export function RoomFun({
   return (
     <>
       <section className="panel fun-toolbar" aria-label="Реакции команды">
-        <div>
-          <strong>Добавим настроения?</strong>
-          <small>Самолётик и реакции — на карточке участника</small>
-        </div>
-        <div className="reaction-picker">
-          {(["heart", "clap", "laugh", "fire", "party"] as const).map(
-            (kind) => (
-              <button
-                type="button"
-                key={kind}
-                aria-label={`Показать реакцию: ${labels[kind]}`}
-                title={labels[kind]}
-                onClick={() => send(kind)}
-              >
-                {reactionIcons[kind]}
-              </button>
-            ),
-          )}
-        </div>
+        <details className="self-reactions">
+          <summary>☺ Моя реакция</summary>
+          <div className="reaction-picker">
+            {(["heart", "clap", "laugh", "fire", "party"] as const).map(
+              (kind) => (
+                <button
+                  type="button"
+                  key={kind}
+                  aria-label={`Показать реакцию: ${labels[kind]}`}
+                  title={labels[kind]}
+                  onClick={() => send(kind)}
+                >
+                  {reactionIcons[kind]}
+                </button>
+              ),
+            )}
+          </div>
+        </details>
         <label className="fun-mute">
           <input
             type="checkbox"
