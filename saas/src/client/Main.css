@@ -1372,6 +1372,7 @@ hr {
 }
 .room-page .room-layout > section {
   min-width: 0;
+  container-type: inline-size;
 }
 .room-page .round-heading {
   min-height: 36px;
@@ -1410,14 +1411,16 @@ hr {
   padding: 0;
 }
 .room-page .table-arena {
-  min-height: 346px;
+  --table-height: clamp(346px, 44cqw, 540px);
+  min-height: var(--table-height);
   padding-inline: 3%;
   margin: 0 0 7px;
 }
 .room-page .table-arena.many-players {
-  min-height: 385px;
+  min-height: max(385px, var(--table-height));
 }
 .room-page .table-arena .poker-table {
+  border-radius: 17% / 32%;
   border-color: #2e3734;
 }
 .room-page .table-arena .seat {
@@ -1504,7 +1507,7 @@ hr {
     text-align: right;
   }
   .room-page .table-arena {
-    min-height: 317px;
+    --table-height: 317px;
     padding-inline: 2%;
   }
 }
