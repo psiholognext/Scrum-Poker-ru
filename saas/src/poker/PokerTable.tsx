@@ -7,16 +7,21 @@ function DealtCard({
   player,
   value,
   hidden,
+  animateDeal,
 }: {
   player: Player;
   value: string | null;
   hidden: boolean;
+  animateDeal: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const card = ref.current;
-    const seat = document.querySelector(`[data-player-seat="${player.id}"]`);
+    const seat = document.querySelector(
+      `[data-player-seat="${player.id}"] .seat-avatar`,
+    );
     if (
+      !animateDeal ||
       !card ||
       !seat ||
       matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -24,18 +29,27 @@ function DealtCard({
       return;
     const from = seat.getBoundingClientRect(),
       to = card.getBoundingClientRect();
+    const dx = from.left + from.width / 2 - to.left - to.width / 2;
+    const dy = from.top + from.height / 2 - to.top - to.height / 2;
+    const tilt = dx < 0 ? -15 : 15;
     const animation = card.animate(
       [
         {
-          transform: `translate(${from.left + from.width / 2 - to.left - to.width / 2}px,${from.top + from.height / 2 - to.top - to.height / 2}px) rotate(-15deg) scale(.55)`,
-          opacity: 0,
+          transform: `translate(${dx}px,${dy}px) rotate(${tilt}deg) scale(.72)`,
+          opacity: 0.25,
         },
+        {
+          transform: `translate(${dx * 0.38}px,${dy * 0.38 - 30}px) rotate(${tilt * 0.6}deg) scale(1.08)`,
+          opacity: 1,
+          offset: 0.55,
+        },
+        { transform: "translateY(3px) rotate(-2deg) scale(.97)", offset: 0.88 },
         { transform: "translate(0,0) rotate(0) scale(1)", opacity: 1 },
       ],
-      { duration: 420, easing: "cubic-bezier(.2,.8,.2,1)" },
+      { duration: 520, easing: "cubic-bezier(.22,.68,.3,1)" },
     );
     return () => animation.cancel();
-  }, [player.id]);
+  }, [player.id, animateDeal]);
   return (
     <div className="table-played-card" data-card-player={player.id} ref={ref}>
       <div
@@ -74,6 +88,9 @@ export function PokerTable({
     >
       <div className="poker-table">
         <div className="table-center">
+          <span className="felt-mark" aria-hidden="true">
+            ♠
+          </span>
           <span className="eyebrow">
             {revealed ? "ОЦЕНКИ ОТКРЫТЫ" : "ГОЛОСОВАНИЕ"}
           </span>
@@ -89,6 +106,7 @@ export function PokerTable({
               <DealtCard
                 key={room.currentRound.id + ":" + p.id}
                 player={p}
+                animateDeal={!revealed}
                 hidden={!revealed && p.id !== room.me}
                 value={
                   p.id === room.me && optimisticVote !== null
@@ -113,9 +131,9 @@ export function PokerTable({
       <div className="seats">
         {players.map((p, index) => {
           const angle =
-            Math.PI + (index * 2 * Math.PI) / Math.max(players.length, 1);
-          const x = 50 + 40 * Math.cos(angle),
-            y = 50 + 41 * Math.sin(angle);
+            -Math.PI / 2 + (index * 2 * Math.PI) / Math.max(players.length, 1);
+          const x = 50 + 43 * Math.cos(angle),
+            y = 50 + 38 * Math.sin(angle);
           const ready =
             p.hasVoted || (p.id === room.me && optimisticVote !== null);
           return (

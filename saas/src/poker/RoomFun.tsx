@@ -1,3 +1,4 @@
+import { Flame, Heart, Laugh, PartyPopper, Send, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Interaction, InteractionKind } from "./live";
 import type { RoomView } from "./operations";
@@ -9,6 +10,25 @@ export const reactionIcons: Record<InteractionKind, string> = {
   fire: "🔥",
   party: "🎉",
 };
+const reactionArt = {
+  plane: Send,
+  heart: Heart,
+  clap: Sparkles,
+  laugh: Laugh,
+  fire: Flame,
+  party: PartyPopper,
+};
+function ReactionIcon({ kind }: { kind: InteractionKind }) {
+  const Icon = reactionArt[kind];
+  return (
+    <Icon
+      aria-hidden="true"
+      className={`reaction-art reaction-${kind}`}
+      size={19}
+      strokeWidth={1.8}
+    />
+  );
+}
 const labels: Record<InteractionKind, string> = {
   plane: "Бумажный самолётик",
   heart: "Сердечко",
@@ -34,9 +54,12 @@ export function TargetReactions({
           type="button"
           title={`${labels[kind]} → ${name}`}
           aria-label={`${labels[kind]} для ${name}`}
-          onClick={() => send(kind, id)}
+          onClick={(event) => {
+            send(kind, id);
+            event.currentTarget.closest("details")?.removeAttribute("open");
+          }}
         >
-          {reactionIcons[kind]}
+          <ReactionIcon kind={kind} />
         </button>
       ))}
     </div>
@@ -144,7 +167,7 @@ export function RoomFun({
                   title={labels[kind]}
                   onClick={() => send(kind)}
                 >
-                  {reactionIcons[kind]}
+                  <ReactionIcon kind={kind} />
                 </button>
               ),
             )}
@@ -204,7 +227,7 @@ export function RoomFun({
                     />
                   </svg>
                 ) : (
-                  reactionIcons[p.event.kind]
+                  <ReactionIcon kind={p.event.kind} />
                 )}
               </div>
               <small>{p.label}</small>

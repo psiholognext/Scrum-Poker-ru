@@ -44,6 +44,7 @@ const path = require('node:path');
  await host.screenshot({path:path.join(artifacts,'reaction.png'),fullPage:true});
  await guest.getByLabel('Скрыть анимации',{exact:true}).check();
  await new Promise(r=>setTimeout(r,750));
+ await host.locator('summary[aria-label="Взаимодействовать: Иван"]').click();
  await host.getByRole('button',{name:'Сердечко для Иван',exact:true}).click();
  await host.locator('[data-testid="room-interaction"][data-kind="heart"]').waitFor();
  assert.equal(await guest.locator('[data-testid="room-interaction"]').count(),0);

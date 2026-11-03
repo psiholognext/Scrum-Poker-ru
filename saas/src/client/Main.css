@@ -1241,3 +1241,180 @@ hr {
     gap: 4px;
   }
 }
+/* The felt, rail and seats form a single table silhouette. */
+.table-arena {
+  min-height: 356px;
+  padding: 42px 9%;
+  margin: 10px 0 14px;
+  isolation: isolate;
+}
+.table-arena .poker-table {
+  position: relative;
+  border: 7px solid #292b32;
+  border-radius: 105px;
+  background: radial-gradient(ellipse at 50% 25%, #204b47, #142e30 82%);
+  box-shadow:
+    0 9px 0 #10191f,
+    0 17px 24px #080c16a0,
+    inset 0 0 0 1px #8cc9a842;
+  padding: 28px 12%;
+}
+.table-arena .poker-table::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border: 1px dashed #a7d5af45;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.table-arena .table-center {
+  position: relative;
+  z-index: 1;
+  color: #e3f5e9;
+}
+.felt-mark {
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 95px;
+  line-height: 1;
+  color: #9bd7b518;
+  pointer-events: none;
+}
+.table-arena .table-center .eyebrow {
+  color: #a7d6bd;
+  letter-spacing: 0.14em;
+}
+.table-arena .table-center p {
+  color: #b3cfc2;
+}
+.table-arena .seats {
+  z-index: 2;
+}
+.table-arena .seat {
+  width: 105px;
+  max-width: none;
+  padding: 5px 5px 6px;
+  background: #151d2b;
+  border: 1px solid #546678;
+  border-radius: 13px;
+  box-shadow: 0 4px 10px #080c166e;
+}
+.table-arena .seat-ready {
+  border-color: #67bb9b;
+}
+.table-arena .seat strong {
+  font-size: 12px;
+}
+.table-arena .seat small {
+  color: #b5c6d6;
+  font-size: 10px;
+}
+.seat-menu {
+  position: static;
+  padding: 0;
+  border: 0;
+}
+.seat-avatar {
+  background: #27374c;
+  border-color: #6e90ae;
+  color: #e0f4ff;
+  width: 32px;
+  height: 32px;
+}
+.seat-menu summary:hover .seat-avatar,
+.seat-menu[open] .seat-avatar {
+  background: #375873;
+}
+.seat-menu .target-reactions {
+  background: #152331;
+  border-color: #4c6679;
+  top: 100%;
+  border-radius: 12px;
+}
+.seat-menu .target-reactions button,
+.self-reactions .reaction-picker button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: #243344;
+  border-color: #456074;
+}
+.reaction-art {
+  display: block;
+  flex-shrink: 0;
+  color: #a4defd;
+}
+.reaction-heart {
+  color: #ffa4b2;
+  fill: #ffa4b240;
+}
+.reaction-clap,
+.reaction-laugh {
+  color: #ffdb91;
+}
+.reaction-fire {
+  color: #ff9a70;
+  fill: #ff9a7030;
+}
+.reaction-party {
+  color: #c5a8fc;
+}
+.fun-symbol .reaction-art {
+  width: 42px;
+  height: 42px;
+  margin: auto;
+}
+.table-played-card {
+  width: 54px;
+}
+.table-played-card .vote-card {
+  width: 41px;
+  height: 55px;
+  font-size: 19px;
+  font-weight: 800;
+  border-radius: 7px;
+  box-shadow: 0 3px 6px #0b1c20a0;
+}
+.table-played-card .card-hidden {
+  color: #d8f4e4;
+  border-color: #90c9ad;
+  background: repeating-linear-gradient(135deg, #285b53 0 3px, #21463f 3px 6px);
+}
+.table-played-card .card-open {
+  background: #f5f3e7;
+  color: #213b39;
+  border-color: #fff9;
+}
+.table-played-card small {
+  color: #d2e8d9;
+}
+@media (max-width: 600px) {
+  .table-arena {
+    padding: 36px 5%;
+    min-height: 330px;
+  }
+  .table-arena .poker-table {
+    border-width: 5px;
+    border-radius: 64px;
+    padding: 35px 9%;
+  }
+  .table-arena .seat {
+    width: 72px;
+    padding: 4px 3px;
+  }
+  .table-arena .seat strong {
+    font-size: 10px;
+  }
+  .table-arena .seat small {
+    font-size: 9px;
+  }
+}
+
+.table-arena .seat:has(.seat-menu[open]) {
+  z-index: 5;
+}
