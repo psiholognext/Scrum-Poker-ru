@@ -58,3 +58,9 @@ Name the initial task when creating a room or demo. A facilitator can edit the c
 Use the buttons below another participant to send a paper plane, heart or applause. The reaction bar shows your own emoji to the room. Animations may be hidden locally and respect reduced-motion preferences. Reactions are transient and limited to six per ten seconds per sender.
 
 Card selection is immediate while the estimate saves. Rapid choices preserve the last selected card; a failed save displays an error and restores confirmed state. Confirmed votes return in the same response and reach connected participants through immediate SSE notifications. The in-memory event bus assumes one application process; use a shared broker when scaling to multiple workers.
+
+### Google sign-in on beta
+
+Create a Web application client in Google Auth Platform. Use External audience and add the Google accounts that will test it while the app is in Testing. Register the exact redirect URI `https://beta.scrumpokeronline.ru/api/auth/google/callback`. The app requests basic profile access and stores the display name. Existing password accounts remain separate.
+
+Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in the private server environment file. Set `REACT_APP_GOOGLE_AUTH=enabled` in `.env.client`, generate the Wasp app with `POKER_ENABLE_GOOGLE=1 wasp build`, build the server and web client, and restart the service. Build without that flag to run without Google credentials. The first successful Google sign-in creates the account and returns the user to the cabinet or their pending team invitation.

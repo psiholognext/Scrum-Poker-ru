@@ -48,8 +48,6 @@ const emailAuthMethod: EmailAuthConfig = {
 // @ts-expect-error Demo purposes
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const usernameAndPasswordAuthMethod: UsernameAndPasswordConfig = {};
-// @ts-expect-error Demo purposes
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const googleAuthMethod: SocialAuthConfig = {
   userSignupFields: getGoogleUserFields,
   configFn: getGoogleAuthConfig,
@@ -75,7 +73,9 @@ export const authConfig: Auth = {
     //       (RequestPasswordResetRoute, PasswordResetRoute, EmailVerificationRoute)
     email: emailAuthMethod,
     // usernameAndPassword: usernameAndPasswordAuthMethod,
-    // google: googleAuthMethod,
+    ...(process.env.POKER_ENABLE_GOOGLE === "1"
+      ? { google: googleAuthMethod }
+      : {}),
     // gitHub: gitGubAuthMethod,
     // discord: discordAuthMethod,
   },

@@ -13,13 +13,20 @@ export const getEmailUserFields = defineUserSignupFields({
   isAdmin: () => false,
 });
 export const getGitHubUserFields = defineUserSignupFields({});
-export const getGoogleUserFields = defineUserSignupFields({});
+const googleProfile = z.object({
+  profile: z.object({ name: z.string().trim().max(150).optional() }),
+});
+export const getGoogleUserFields = defineUserSignupFields({
+  name: (data) =>
+    googleProfile.safeParse(data).data?.profile.name || "Участник",
+  isAdmin: () => false,
+});
 export const getDiscordUserFields = defineUserSignupFields({});
 export function getGitHubAuthConfig() {
   return { scopes: ["user:email"] };
 }
 export function getGoogleAuthConfig() {
-  return { scopes: ["profile", "email"] };
+  return { scopes: ["profile"] };
 }
 export function getDiscordAuthConfig() {
   return { scopes: ["identify", "email"] };

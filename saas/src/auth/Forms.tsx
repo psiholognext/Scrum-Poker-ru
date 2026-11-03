@@ -7,6 +7,7 @@ import {
   resetPassword,
   verifyEmail,
 } from "wasp/client/auth";
+import { config, env } from "wasp/client";
 import { AuthPageLayout } from "./AuthPageLayout";
 import { useRedirectIfLoggedIn } from "./hooks/useRedirectIfLoggedIn";
 
@@ -28,6 +29,9 @@ function Form({ mode }: { mode: "login" | "signup" | "request" | "reset" }) {
   const [busy, setBusy] = useState(false);
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const showGoogle =
+    env.REACT_APP_GOOGLE_AUTH === "enabled" &&
+    (mode === "login" || mode === "signup");
   const title = {
     login: "Войти в аккаунт",
     signup: "Создать аккаунт",
@@ -72,7 +76,27 @@ function Form({ mode }: { mode: "login" | "signup" | "request" | "reset" }) {
   return (
     <AuthPageLayout>
       <h2>{title}</h2>
-      {done ? (
+      {showGoogle && (
+        <>
+          <a
+            className="button full"
+            href={`${config.apiUrl}/auth/google/login`}
+          >
+            Войти через Google
+          </a>
+          {mode === "signup" && (
+            <p className="muted">
+              При первом входе создадим аккаунт Scrum Poker.
+            </p>
+          )}
+          {mode === "login" && (
+            <p className="muted">
+              Для аккаунта с паролем используйте форму ниже.
+            </p>
+          )}
+        </>
+      )}
+      {showGoogle && mode === "signup" ? null : done ? (
         <div className="success" role="status">
           {mode === "signup"
             ? "Проверьте почту. Подтвердите email по ссылке из письма, затем войдите в аккаунт."

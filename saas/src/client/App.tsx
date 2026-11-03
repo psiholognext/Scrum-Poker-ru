@@ -1,10 +1,20 @@
-import { Link, Outlet, useNavigate } from "react-router";
+import { useEffect } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { logout, useAuth } from "wasp/client/auth";
 import { env } from "wasp/client";
 import "./Main.css";
 export function App() {
   const { data: user } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!user || pathname !== "/app") return;
+    const invite = sessionStorage.getItem("pendingInvite");
+    if (!invite) return;
+    sessionStorage.removeItem("pendingInvite");
+    if (/^\/invite\/[a-f0-9]{64}$/.test(invite))
+      navigate(invite, { replace: true });
+  }, [user, pathname, navigate]);
   return (
     <>
       <header className="topbar">
